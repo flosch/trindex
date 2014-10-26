@@ -27,7 +27,7 @@ func TestSimple(t *testing.T) {
 	}
 
 	for i, qry := range queries {
-		rs := idx.Query(qry, 1)
+		rs := idx.Query(qry, 1, 0)
 		if len(rs) < 1 {
 			t.Fatalf("len(rs) != 1, instead %d", len(rs))
 		}

@@ -1,13 +1,13 @@
 package main
 
 import (
-	"os"
-	"time"
 	"encoding/csv"
-	"strconv"
-	"log"
 	"flag"
+	"log"
+	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/flosch/trindex"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -16,7 +16,7 @@ import (
 /*
 This example requries the Wikidata CSV file I'm providing for download:
 https://www.florian-schlachter.de/~flosch/wikidata-names.tar.bz2
- */
+*/
 
 func main() {
 	var base_dir = flag.String("base_dir", "/data_ssd/world/trindex-wikidata/", "Specify the default output file.")
@@ -69,7 +69,7 @@ func main() {
 			panic(err)
 		}
 
-		if counter % 100000 == 0 {
+		if counter%100000 == 0 {
 			log.Println(counter)
 		}
 	}

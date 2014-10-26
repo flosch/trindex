@@ -1,10 +1,10 @@
 package trindex
 
 import (
+	"bufio"
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
-	"bufio"
 	"os"
 	"sync"
 

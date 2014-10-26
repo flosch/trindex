@@ -8,11 +8,10 @@ package trindex
 // integer items]
 
 import (
-	//"container/heap"
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"os"
-	"bufio"
 	"sync"
 	"sync/atomic"
 
@@ -65,35 +64,6 @@ func (r *Result) String() string {
 func (r *Result) Less(other llrb.Item) bool {
 	return r.Similarity < other.(*Result).Similarity
 }
-
-
-/*
-func (rs ResultSet) Len() int {
-	return len(rs)
-}
-
-func (rs ResultSet) Swap(i, j int) {
-	rs[i], rs[j] = rs[j], rs[i]
-	rs[i].index = i
-	rs[j].index = j
-}
-
-func (rs *ResultSet) Push(x interface{}) {
-	n := len(*rs)
-	item := x.(*Result)
-	item.index = n
-	*rs = append(*rs, item)
-}
-
-func (rs *ResultSet) Pop() interface{} {
-	old := *rs
-	n := len(old)
-	item := old[n-1]
-	item.index = -1
-	*rs = old[0 : n-1]
-	return item
-}
-*/
 
 func NewIndex(filename string) *Index {
 	idx := &Index{
@@ -305,7 +275,6 @@ func (idx *Index) Query(query string, max_results int) ResultSet {
 		lowest_similarity = s
 	}
 
-
 	//etime = time.Now().Sub(stime)
 	//fmt.Printf("[%s] Time to calculate top X took: %s\n", query, etime)
 
@@ -313,8 +282,8 @@ func (idx *Index) Query(query string, max_results int) ResultSet {
 		item_count := min(tree.Len(), max_results)
 		result_set := make(ResultSet, 0, item_count)
 
-		tree.DescendLessOrEqual(&Result{Similarity: 1.0}, func(i llrb.Item) bool {
-			if len(result_set) < item_count  {
+		tree.DescendLessOrEqual(&Result{Similarity: 1.1}, func(i llrb.Item) bool {
+			if len(result_set) < item_count {
 				result_set = append(result_set, i.(*Result))
 				return true
 			}

@@ -1,5 +1,4 @@
-trindex
-=======
+# trindex
 
 [![GoDoc](https://godoc.org/github.com/flosch/trindex?status.png)](https://godoc.org/github.com/flosch/trindex)
 [![Build Status](https://travis-ci.org/flosch/trindex.svg?branch=master)](https://travis-ci.org/flosch/trindex)
@@ -33,3 +32,7 @@ results := idx.Query("malorka", 3)
 
 trindex relies heavily on caching; it's API is safe for concurrent use. Please make sure that you'll call `idx.Close()`
 **in any case** on application shutdown (to flush inserted data to disk).
+
+## Related blog posts
+
+ * [trindex: A trigram search library for Go](https://www.florian-schlachter.de/post/trindex/) [26th Oct 2014]

@@ -9,19 +9,19 @@ package trindex
 
 import (
 	"bufio"
+	"container/heap"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
-
-	"github.com/petar/GoLLRB/llrb"
+	//"time"
 )
 
 const (
 	writeCacheSize = 250000
 	cacheDocIDSize = 1e7
-	cacheSize      = 1024 * 1024 * 512 // 512 MiB, given in byte
+	cacheSize      = 1024 * 1024 * 700 // 512 MiB, given in byte
 	//sampleTresholdCount        = 50
 	//sampleTresholdLargeStorage = 500 // in bytes, we change to a bitmap storage for large files (= huge amount of trigrams)
 )
@@ -61,8 +61,40 @@ func (r *Result) String() string {
 	return fmt.Sprintf("<Result ID=%d Similarity=%.2f>", r.ID, r.Similarity)
 }
 
+/*
 func (r *Result) Less(other llrb.Item) bool {
 	return r.Similarity < other.(*Result).Similarity
+}
+*/
+
+func (rs ResultSet) Less(i, j int) bool {
+	return rs[i].Similarity > rs[j].Similarity
+}
+
+func (rs ResultSet) Len() int {
+	return len(rs)
+}
+
+func (rs ResultSet) Swap(i, j int) {
+	rs[i], rs[j] = rs[j], rs[i]
+	rs[i].index = i
+	rs[j].index = j
+}
+
+func (rs *ResultSet) Push(x interface{}) {
+	n := len(*rs)
+	item := x.(*Result)
+	item.index = n
+	*rs = append(*rs, item)
+}
+
+func (rs *ResultSet) Pop() interface{} {
+	old := *rs
+	n := len(old)
+	item := old[n-1]
+	item.index = -1
+	*rs = old[0 : n-1]
+	return item
 }
 
 func NewIndex(filename string) *Index {
@@ -229,7 +261,7 @@ func (idx *Index) flushWriteCache() {
 	idx.write_cache = make([]uint64, 0, writeCacheSize)
 }
 
-func (idx *Index) Query(query string, max_results int) ResultSet {
+func (idx *Index) Query(query string, max_results int, skip float64) ResultSet {
 	trigrams := trigramize(query)
 	trigrams_len := float64(len(trigrams))
 
@@ -249,13 +281,15 @@ func (idx *Index) Query(query string, max_results int) ResultSet {
 		}
 	}
 
-	//etime := time.Now().Sub(stime)
-	//fmt.Printf("[%s] Time to get all document IDs per trigram took: %s\n", query, etime)
-	//stime = time.Now()
+	/*
+	etime := time.Now().Sub(stime)
+	fmt.Printf("[%s] Time to get all document IDs per trigram took: %s\n", query, etime)
+	stime = time.Now()
+	*/
 
-	tree := llrb.New()
+	heap_list := make(ResultSet, 0, max_results+1)
+	heap.Init(&heap_list)
 
-	lowest_similarity := 0.0
 	for id, count := range temp_map {
 		x := trigrams_len / float64(idx.getTotalTrigrams(id))
 		if x > 1 {
@@ -263,32 +297,26 @@ func (idx *Index) Query(query string, max_results int) ResultSet {
 		}
 		s := (float64(count) / trigrams_len) - (1.0 - x)
 
-		if tree.Len() > max_results && s < lowest_similarity {
+		if len(heap_list) > max_results && s < skip {
 			continue
 		}
 
-		tree.InsertNoReplace(&Result{
+		heap.Push(&heap_list, &Result{
 			ID:         id,
 			Similarity: s,
 		})
-
-		lowest_similarity = s
 	}
 
 	//etime = time.Now().Sub(stime)
 	//fmt.Printf("[%s] Time to calculate top X took: %s\n", query, etime)
 
-	if tree.Len() > 0 {
-		item_count := min(tree.Len(), max_results)
+	if len(heap_list) > 0 {
+		item_count := min(len(heap_list), max_results)
 		result_set := make(ResultSet, 0, item_count)
 
-		tree.DescendLessOrEqual(&Result{Similarity: 1.1}, func(i llrb.Item) bool {
-			if len(result_set) < item_count {
-				result_set = append(result_set, i.(*Result))
-				return true
-			}
-			return false
-		})
+		for i := 0; i < item_count; i++ {
+			result_set = append(result_set, heap.Pop(&heap_list).(*Result))
+		}
 
 		return result_set
 	}

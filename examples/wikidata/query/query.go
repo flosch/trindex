@@ -42,7 +42,7 @@ func main() {
 		}
 		fmt.Printf("Searching for '%s'...\n", query)
 		stime := time.Now()
-		results := idx.Query(query, 10)
+		results := idx.Query(query, 10, 0.35)
 		etime := time.Now().Sub(stime)
 		for idx, item := range results {
 			buf, err := trindexNameDB.Get([]byte(strconv.Itoa(int(item.ID))), nil)

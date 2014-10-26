@@ -27,10 +27,10 @@ for _, data := range dataset {
     // for example save the ID in your SQL database about travel destinations
 }
 
-results := idx.Query("malorka", 3)
+results := idx.Query("malorka", 3, 0.3)
 
 // Returns a sorted list of 3 results including the ID and
-// a confidence number ("Similarity"; 1 = best match) 
+// a confidence number ("Similarity"; 1 = best match) >= 0.3 
 ```
 
 trindex relies heavily on caching; it's API is safe for concurrent use. Please make sure that you'll call `idx.Close()`

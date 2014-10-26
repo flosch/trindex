@@ -8,13 +8,15 @@ package trindex
 // integer items]
 
 import (
-	"container/heap"
+	//"container/heap"
 	"encoding/binary"
 	"fmt"
 	"os"
+	"bufio"
 	"sync"
 	"sync/atomic"
-	//"time"
+
+	"github.com/petar/GoLLRB/llrb"
 )
 
 const (
@@ -60,12 +62,14 @@ func (r *Result) String() string {
 	return fmt.Sprintf("<Result ID=%d Similarity=%.2f>", r.ID, r.Similarity)
 }
 
-func (rs ResultSet) Len() int {
-	return len(rs)
+func (r *Result) Less(other llrb.Item) bool {
+	return r.Similarity < other.(*Result).Similarity
 }
 
-func (rs ResultSet) Less(i, j int) bool {
-	return rs[i].Similarity >= rs[j].Similarity
+
+/*
+func (rs ResultSet) Len() int {
+	return len(rs)
 }
 
 func (rs ResultSet) Swap(i, j int) {
@@ -89,6 +93,7 @@ func (rs *ResultSet) Pop() interface{} {
 	*rs = old[0 : n-1]
 	return item
 }
+*/
 
 func NewIndex(filename string) *Index {
 	idx := &Index{
@@ -127,9 +132,10 @@ func NewIndex(filename string) *Index {
 
 		// For the time being, read min(item_id, 5000000) IDs into cache.
 		// We could skip these step but have it in the library for performance reasons.
+		r := bufio.NewReader(fd)
 		var tmp_id uint32
 		for i := uint64(0); i < uint64(min(int(idx.item_id), 5000000)); i++ {
-			err = binary.Read(fd, binary.LittleEndian, &tmp_id)
+			err = binary.Read(r, binary.LittleEndian, &tmp_id)
 			if err != nil {
 				panic(err)
 			}
@@ -179,6 +185,7 @@ func (idx *Index) Insert(data string) uint64 {
 		// Flush anything to disk before we delete something from cache
 		idx.flushWriteCache()
 
+		idx.item_db_lock.Lock()
 		for doc_id, _ := range idx.cache {
 			counter++
 			delete(idx.cache, doc_id)
@@ -187,16 +194,17 @@ func (idx *Index) Insert(data string) uint64 {
 				break
 			}
 		}
+		idx.item_db_lock.Unlock()
 	}
 
 	if len(idx.write_cache) >= writeCacheSize {
 		idx.flushWriteCache()
 	}
 
-	idx.cache[new_doc_id] = uint32(len(trigrams))
-
 	idx.item_db_lock.Lock()
 	defer idx.item_db_lock.Unlock()
+
+	idx.cache[new_doc_id] = uint32(len(trigrams))
 
 	idx.write_cache = append(idx.write_cache, new_doc_id)
 
@@ -212,7 +220,11 @@ func (idx *Index) getTotalTrigrams(doc_id uint64) int {
 		return int(count)
 	}
 
-	_, err := idx.item_db.Seek(int64(doc_id*8), 0)
+	if doc_id <= 0 {
+		panic("doc_id <= 0 not available")
+	}
+
+	_, err := idx.item_db.Seek(int64(8+(doc_id-1)*4), 0)
 	if err != nil {
 		panic(err)
 	}
@@ -234,7 +246,7 @@ func (idx *Index) flushWriteCache() {
 
 	// write_cache
 	for _, doc_id := range idx.write_cache {
-		_, err := idx.item_db.Seek(int64(doc_id*8), 0)
+		_, err := idx.item_db.Seek(int64(8+(doc_id-1)*4), 0)
 		if err != nil {
 			panic(err)
 		}
@@ -247,7 +259,7 @@ func (idx *Index) flushWriteCache() {
 	idx.write_cache = make([]uint64, 0, writeCacheSize)
 }
 
-func (idx *Index) Query(query string, max_items int) ResultSet {
+func (idx *Index) Query(query string, max_results int) ResultSet {
 	trigrams := trigramize(query)
 	trigrams_len := float64(len(trigrams))
 
@@ -271,39 +283,21 @@ func (idx *Index) Query(query string, max_items int) ResultSet {
 	//fmt.Printf("[%s] Time to get all document IDs per trigram took: %s\n", query, etime)
 	//stime = time.Now()
 
+	tree := llrb.New()
+
 	lowest_similarity := 0.0
-	heap_set := make(ResultSet, 0, max_items+1)
-	heap.Init(&heap_set)
 	for id, count := range temp_map {
-		if len(heap_set) < max_items {
-			x := trigrams_len / float64(idx.getTotalTrigrams(id))
-			if x > 1 {
-				x = 1.0 / x
-			}
-			sim := (float64(count) / trigrams_len) - (1.0 - x)
-			/*result_set = append(result_set, )*/
-			heap_set.Push(&Result{
-				ID:         id,
-				Similarity: sim,
-			})
-
-			if lowest_similarity == 0.0 || sim < lowest_similarity {
-				lowest_similarity = sim
-			}
-			continue
-		}
-
 		x := trigrams_len / float64(idx.getTotalTrigrams(id))
 		if x > 1 {
 			x = 1.0 / x
 		}
 		s := (float64(count) / trigrams_len) - (1.0 - x)
 
-		if s < lowest_similarity {
+		if tree.Len() > max_results && s < lowest_similarity {
 			continue
 		}
 
-		heap_set.Push(&Result{
+		tree.InsertNoReplace(&Result{
 			ID:         id,
 			Similarity: s,
 		})
@@ -311,15 +305,22 @@ func (idx *Index) Query(query string, max_items int) ResultSet {
 		lowest_similarity = s
 	}
 
+
 	//etime = time.Now().Sub(stime)
 	//fmt.Printf("[%s] Time to calculate top X took: %s\n", query, etime)
 
-	if len(heap_set) > 0 {
-		item_count := min(len(heap_set), max_items)
-		result_set := make(ResultSet, item_count)
-		for i := 0; i < item_count; i++ {
-			result_set[i] = heap_set.Pop().(*Result)
-		}
+	if tree.Len() > 0 {
+		item_count := min(tree.Len(), max_results)
+		result_set := make(ResultSet, 0, item_count)
+
+		tree.DescendLessOrEqual(&Result{Similarity: 1.0}, func(i llrb.Item) bool {
+			if len(result_set) < item_count  {
+				result_set = append(result_set, i.(*Result))
+				return true
+			}
+			return false
+		})
+
 		return result_set
 	}
 

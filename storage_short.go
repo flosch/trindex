@@ -146,7 +146,7 @@ func (storage *listStorage) AddItem(trigram string, doc_id uint64) {
 				panic(err)
 			}
 
-			_, err = storage.db.Seek((slotSize-1)*8-1, 1)
+			_, err = storage.db.Seek(offset+(slotSize-1)*8-1, 0)
 			if err != nil {
 				panic(err)
 			}
@@ -156,7 +156,7 @@ func (storage *listStorage) AddItem(trigram string, doc_id uint64) {
 			}
 		} else {
 			last_idx.Items++
-			_, err := storage.db.Seek(int64(last_idx.Position+last_idx.Items*8), 0)
+			_, err := storage.db.Seek(int64(last_idx.Position+(last_idx.Items-1)*8), 0)
 			if err != nil {
 				panic(err)
 			}

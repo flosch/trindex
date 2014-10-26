@@ -209,7 +209,7 @@ func (idx *Index) getTotalTrigrams(doc_id uint64) int {
 func (idx *Index) flushWriteCache() {
 	idx.item_db_lock.Lock()
 	defer idx.item_db_lock.Unlock()
-	
+
 	// write_cache
 	for _, doc_id := range idx.write_cache {
 		_, err := idx.item_db.Seek(int64(doc_id*8), 0)

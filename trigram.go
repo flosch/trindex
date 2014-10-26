@@ -19,5 +19,10 @@ func trigramize(data string) (trigrams []string) {
 		trigrams = append(trigrams, string(data_runes[i:i+3]))
 	}
 
+	trigrams = append(trigrams, string(data_runes[dl-2:dl]))
+	trigrams = append(trigrams, string(data_runes[dl-1:dl]))
+	trigrams = append(trigrams, string(data_runes[0:1]))
+	trigrams = append(trigrams, string(data_runes[0:2]))
+
 	return
 }

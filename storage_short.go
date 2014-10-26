@@ -3,10 +3,10 @@ package trindex
 import (
 	"encoding/binary"
 	"encoding/gob"
+	"fmt"
 	"os"
 	"sync"
-	"fmt"
-	
+
 	"github.com/flosch/cache"
 )
 

@@ -297,7 +297,7 @@ func (idx *Index) Query(query string, max_results int, skip float64) ResultSet {
 		}
 		s := (float64(count) / trigrams_len) - (1.0 - x)
 
-		if len(heap_list) > max_results && s < skip {
+		if s < skip {
 			continue
 		}
 

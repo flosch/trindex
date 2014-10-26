@@ -11,7 +11,7 @@ and ships with its own database.
 I put up a demo page online using trindex. I indexed all German wikidata lemmas (4064962 titles in total) and made them available for search: https://www.florian-schlachter.de/trindex/
 
 ```go
-idx := NewIndex("trindex.db")
+idx := trindex.NewIndex("trindex.db")
 defer idx.Close()
 
 dataset := []string{

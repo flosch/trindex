@@ -13,7 +13,8 @@ idx := NewIndex("trindex.db")
 defer idx.Close()
 
 dataset := []string{
-    "Mallorca", "Ibiza", "Menorca", "Pityusen", "Formentera", "Berlin", "New York", "Yorkshire",
+    "Mallorca", "Ibiza", "Menorca", "Pityusen", "Formentera", 
+    "Berlin", "New York", "Yorkshire",
 }
 
 for _, data := range dataset {
@@ -24,7 +25,8 @@ for _, data := range dataset {
 
 results := idx.Query("malorka", 3)
 
-// Returns a sorted list of results including the ID and a confidence number ("Similarity"; 1 = best match) 
+// Returns a sorted list of 3 results including the ID and
+// a confidence number ("Similarity"; 1 = best match) 
 ```
 
 trindex relies heavily on caching; it's API is safe for concurrent use. Please make sure that you'll call `idx.Close()`

@@ -8,7 +8,7 @@ trindex
 trindex is a trigram search library for terms written for and in Go (in alpha stage!). It provides a very simple API
 and ships with its own database.
 
-I put up a demo page online using trindex. I indexed all German wikidata lemmas and made them available for search: https://www.florian-schlachter.de/trindex/
+I put up a demo page online using trindex. I indexed all German wikidata lemmas (4064962 titles in total) and made them available for search: https://www.florian-schlachter.de/trindex/
 
 ```go
 idx := NewIndex("trindex.db")

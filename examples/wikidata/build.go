@@ -13,6 +13,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+/*
+This example requries the Wikidata CSV file I'm providing for download:
+https://www.florian-schlachter.de/~flosch/wikidata-names.tar.bz2
+ */
+
 func main() {
 	var base_dir = flag.String("base_dir", "/data_ssd/world/trindex-wikidata/", "Specify the default output file.")
 	var input_file = flag.String("input_file", "/data_ssd/world/wikidata_export_names.csv", "Specify the input CSV file.")

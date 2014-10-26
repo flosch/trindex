@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
+	"bufio"
 	"os"
 	"sync"
 
@@ -176,6 +177,8 @@ func (storage *listStorage) GetItems(trigram string) []uint64 {
 		return list.([]uint64)
 	}
 
+	//fmt.Println("not in cache, loading from disk: ", trigram)
+
 	indexes, has := storage.header.Trigrams[trigram]
 	if !has {
 		return nil
@@ -193,8 +196,9 @@ func (storage *listStorage) GetItems(trigram string) []uint64 {
 	var err error
 	for _, idx := range indexes {
 		storage.db.Seek(int64(idx.Position), 0)
+		r := bufio.NewReader(storage.db)
 		for i := uint64(0); i < idx.Items; i++ {
-			err = binary.Read(storage.db, binary.LittleEndian, &tmp_id)
+			err = binary.Read(r, binary.LittleEndian, &tmp_id)
 			if err != nil {
 				panic(err)
 			}

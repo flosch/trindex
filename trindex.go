@@ -8,20 +8,21 @@ package trindex
 // integer items]
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"fmt"
 	"os"
-	"sort"
 	"sync"
 	"sync/atomic"
+	//"time"
 )
 
 const (
-	writeCacheSize             = 250000
-	cacheDocIDSize             = 1e7
-	cacheSize                  = 1024 * 1024 * 512 // 512 MiB, given in byte
-	sampleTresholdCount        = 50
-	sampleTresholdLargeStorage = 500 // in bytes, we change to a bitmap storage for large files (= huge amount of trigrams)
+	writeCacheSize = 250000
+	cacheDocIDSize = 1e7
+	cacheSize      = 1024 * 1024 * 512 // 512 MiB, given in byte
+	//sampleTresholdCount        = 50
+	//sampleTresholdLargeStorage = 500 // in bytes, we change to a bitmap storage for large files (= huge amount of trigrams)
 )
 
 type storageType int
@@ -39,14 +40,16 @@ type Index struct {
 	item_id      uint64
 	item_db_lock sync.Mutex
 	item_db      *os.File
-	cache        map[uint64]uint32
-	write_cache  []uint64
+
+	cache       map[uint64]uint32
+	write_cache []uint64
 
 	storageEngine storageType
 	storage       IStorage
 }
 
 type Result struct {
+	index      int
 	ID         uint64
 	Similarity float64
 }
@@ -67,6 +70,24 @@ func (rs ResultSet) Less(i, j int) bool {
 
 func (rs ResultSet) Swap(i, j int) {
 	rs[i], rs[j] = rs[j], rs[i]
+	rs[i].index = i
+	rs[j].index = j
+}
+
+func (rs *ResultSet) Push(x interface{}) {
+	n := len(*rs)
+	item := x.(*Result)
+	item.index = n
+	*rs = append(*rs, item)
+}
+
+func (rs *ResultSet) Pop() interface{} {
+	old := *rs
+	n := len(old)
+	item := old[n-1]
+	item.index = -1
+	*rs = old[0 : n-1]
+	return item
 }
 
 func NewIndex(filename string) *Index {
@@ -104,9 +125,10 @@ func NewIndex(filename string) *Index {
 			panic(err)
 		}
 
-		// Read all IDs into cache
+		// For the time being, read min(item_id, 5000000) IDs into cache.
+		// We could skip these step but have it in the library for performance reasons.
 		var tmp_id uint32
-		for i := uint64(0); i < idx.item_id; i++ {
+		for i := uint64(0); i < uint64(min(int(idx.item_id), 5000000)); i++ {
 			err = binary.Read(fd, binary.LittleEndian, &tmp_id)
 			if err != nil {
 				panic(err)
@@ -123,11 +145,11 @@ func (idx *Index) Close() {
 	idx.storage.Close()
 
 	idx.item_db_lock.Lock()
-	_, err := idx.item_db.Seek(0, 2)
+	_, err := idx.item_db.Seek(0, 0)
 	if err != nil {
 		panic(err)
 	}
-	err = binary.Write(idx.item_db, binary.LittleEndian, uint64(0))
+	err = binary.Write(idx.item_db, binary.LittleEndian, idx.item_id)
 	if err != nil {
 		panic(err)
 	}
@@ -135,7 +157,7 @@ func (idx *Index) Close() {
 
 	idx.flushWriteCache()
 
-	if err := idx.item_db.Close(); err != nil {
+	if err = idx.item_db.Close(); err != nil {
 		panic(err)
 	}
 }
@@ -229,21 +251,13 @@ func (idx *Index) Query(query string, max_items int) ResultSet {
 	trigrams := trigramize(query)
 	trigrams_len := float64(len(trigrams))
 
-	temp_map := make(map[uint64]int)
+	//stime := time.Now()
 
+	temp_map := make(map[uint64]int)
 	for _, trigram := range trigrams {
 		doc_ids := idx.storage.GetItems(trigram)
 
-		// 1 document only once per trigram
-		once_map := make(map[uint64]bool)
-
 		for _, id := range doc_ids {
-			_, has := once_map[id]
-			if has {
-				continue
-			}
-			once_map[id] = true
-
 			c, has := temp_map[id]
 			if has {
 				temp_map[id] = c + 1
@@ -253,21 +267,29 @@ func (idx *Index) Query(query string, max_items int) ResultSet {
 		}
 	}
 
+	//etime := time.Now().Sub(stime)
+	//fmt.Printf("[%s] Time to get all document IDs per trigram took: %s\n", query, etime)
+	//stime = time.Now()
+
 	lowest_similarity := 0.0
-	result_set := make(ResultSet, 0, max_items+1)
+	heap_set := make(ResultSet, 0, max_items+1)
+	heap.Init(&heap_set)
 	for id, count := range temp_map {
-		if len(result_set) < max_items {
+		if len(heap_set) < max_items {
 			x := trigrams_len / float64(idx.getTotalTrigrams(id))
 			if x > 1 {
 				x = 1.0 / x
 			}
-			result_set = append(result_set, &Result{
+			sim := (float64(count) / trigrams_len) - (1.0 - x)
+			/*result_set = append(result_set, )*/
+			heap_set.Push(&Result{
 				ID:         id,
-				Similarity: (float64(count) / trigrams_len) - (1.0 - x),
+				Similarity: sim,
 			})
 
-			sort.Sort(result_set)
-			lowest_similarity = result_set[len(result_set)-1].Similarity
+			if lowest_similarity == 0.0 || sim < lowest_similarity {
+				lowest_similarity = sim
+			}
 			continue
 		}
 
@@ -281,18 +303,24 @@ func (idx *Index) Query(query string, max_items int) ResultSet {
 			continue
 		}
 
-		result_set = append(result_set, &Result{
+		heap_set.Push(&Result{
 			ID:         id,
 			Similarity: s,
 		})
 
-		sort.Sort(result_set)
-		result_set = result_set[:min(max_items, len(result_set))]
-		lowest_similarity = result_set[len(result_set)-1].Similarity
+		lowest_similarity = s
 	}
 
-	if len(result_set) > 0 {
-		return result_set[:min(len(temp_map), max_items)]
+	//etime = time.Now().Sub(stime)
+	//fmt.Printf("[%s] Time to calculate top X took: %s\n", query, etime)
+
+	if len(heap_set) > 0 {
+		item_count := min(len(heap_set), max_items)
+		result_set := make(ResultSet, item_count)
+		for i := 0; i < item_count; i++ {
+			result_set[i] = heap_set.Pop().(*Result)
+		}
+		return result_set
 	}
 
 	return nil

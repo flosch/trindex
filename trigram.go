@@ -12,17 +12,18 @@ func trigramize(data string) (trigrams []string) {
 		data_runes = append(data_runes, ' ')
 	}
 
-	trigram_set := make(map[string]*struct{})
+	empty := struct{}{}
+	trigram_set := make(map[string]struct{})
 
 	dl := len(data_runes)
 	for i := 0; i < dl-2; i++ {
-		trigram_set[string(data_runes[i:i+3])] = nil
+		trigram_set[string(data_runes[i:i+3])] = empty
 	}
 
-	trigram_set[string(data_runes[dl-2:dl])] = nil
-	trigram_set[string(data_runes[dl-1:dl])] = nil
-	trigram_set[string(data_runes[0:1])] = nil
-	trigram_set[string(data_runes[0:2])] = nil
+	trigram_set[string(data_runes[dl-2:dl])] = empty
+	trigram_set[string(data_runes[dl-1:dl])] = empty
+	trigram_set[string(data_runes[0:1])] = empty
+	trigram_set[string(data_runes[0:2])] = empty
 
 	for k, _ := range trigram_set {
 		trigrams = append(trigrams, k)

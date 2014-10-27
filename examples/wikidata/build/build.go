@@ -19,7 +19,7 @@ https://www.florian-schlachter.de/~flosch/wikidata-names.tar.bz2
 */
 
 func main() {
-	var base_dir = flag.String("base_dir", "/data_ssd/world/trindex-wikidata/", "Specify the default output file.")
+	var base_dir = flag.String("base_dir", "/data_ssd/world/trindex-wikidata/", "Specify the default output path.")
 	var input_file = flag.String("input_file", "/data_ssd/world/wikidata_export_names.csv", "Specify the input CSV file.")
 	var run = flag.Bool("run", false, "Please make this boolean true if you are sure.")
 	flag.Parse()
